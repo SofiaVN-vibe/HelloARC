@@ -110,7 +110,11 @@ export default class BootScene extends Phaser.Scene {
     this.registerAnimations();
 
     console.log('Textures and animations generated! Starting title...');
-    this.scene.start('TitleScene');
+if (window.WEB3?.connected) {
+  this.scene.start("TitleScene");
+} else {
+  this.scene.start("ConnectWalletScene");
+}
   }
 
   registerAnimations() {

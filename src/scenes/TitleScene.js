@@ -3,6 +3,7 @@ import * as Audio from '../utils/audio.js';
 import SaveManager from '../systems/SaveManager.js';
 import RebirthManager from '../systems/RebirthManager.js';
 import { isConnected } from '../utils/socket.js';
+import { readUsdcBalance, sendUsdc } from '../web3/arc.js';
 
 export default class TitleScene extends Phaser.Scene {
   constructor() {
@@ -13,9 +14,12 @@ export default class TitleScene extends Phaser.Scene {
     this.isMusicOn = false;
     this.settingsMenuOpen = false;
     this.hasSavedGame = false;
+    this.isShuttingDown = false;
   }
 
   create() {
+    this.events.once('shutdown', this.cleanup, this);
+    this.events.once('destroy', this.cleanup, this);
     // Initialize audio on first interaction
     this.input.once('pointerdown', () => {
       Audio.initAudio();
@@ -138,12 +142,6 @@ export default class TitleScene extends Phaser.Scene {
       repeat: -1
     });
 
-    // Version
-    this.add.text(400, 215, 'v1.0 // POWERED BY CLAUDE CODE', {
-      fontFamily: 'monospace',
-      fontSize: '10px',
-      color: '#666666'
-    }).setOrigin(0.5);
   }
 
   glitchTitle() {
@@ -223,13 +221,22 @@ export default class TitleScene extends Phaser.Scene {
       color: '#ffd700'
     }).setOrigin(0.5);
 
-    // Currency display
-    const currency = window.VIBE_UPGRADES?.currency || 0;
-    this.add.text(500, 540, `BITS: ${currency}`, {
+    // USDC balance display
+    this.usdcFooterText = this.add.text(500, 540, 'USDC: -', {
       fontFamily: 'monospace',
       fontSize: '14px',
       color: '#00ffff'
     }).setOrigin(0.5);
+
+    if (window.WEB3?.address) {
+      readUsdcBalance(window.WEB3.address)
+        .then((bal) => {
+          this.usdcFooterText.setText(`USDC: ${bal}`);
+        })
+        .catch(() => {
+          this.usdcFooterText.setText('USDC: -');
+        });
+    }
 
     // Connection status badge (top right corner)
     const connected = isConnected();
@@ -257,6 +264,13 @@ export default class TitleScene extends Phaser.Scene {
       fontSize: '10px',
       color: '#444444'
     }).setOrigin(0.5);
+
+    // Subtle copyright mark
+    this.add.text(760, 585, '@SofiaCryptoVibe', {
+      fontFamily: 'monospace',
+      fontSize: '9px',
+      color: '#2f2f2f'
+    }).setOrigin(1, 1);
   }
 
   createCodeParticles() {
@@ -381,21 +395,9 @@ export default class TitleScene extends Phaser.Scene {
     ];
 
     this.warglaiveQuotes = [
-      // Luu - artwork credit
-      "Artwork by Luu\n*absolute masterpiece*",
-      // DareDev256 - the almighty
-      "DareDev256...\nthe ALMIGHTY",
-      "ALL HAIL\nDareDev256",
-      "DareDev256\nblessed this game",
-      "DareDev256 is\nbuilt different",
-      // Raw references
       "Can't wait to swing\nthe RAWGLAIVE",
       "Raw mode\nACTIVATED",
       "Raw's watching...\n*no pressure*",
-      // Claude
-      "Claude coded this\nwith me btw",
-      "Opus-powered\ngameplay",
-      // General hype
       "0.01% drop rate\nworth it tho"
     ];
 
@@ -431,7 +433,7 @@ export default class TitleScene extends Phaser.Scene {
     ];
 
     this.xpDisconnectedQuotes = [
-      "XP server down...\nPress SPACE manually",
+      "XP server down...\nKeep slaying bugs",
       "Connection lost\n*sad beep*"
     ];
 
@@ -475,12 +477,6 @@ export default class TitleScene extends Phaser.Scene {
     ];
 
     // CLI source-specific quotes
-    this.claudeQuotes = [
-      "Claude cooking!",
-      "Opus mode\nactivated",
-      "Claude Code\ngoes hard"
-    ];
-
     this.codexQuotes = [
       "Codex in the house!",
       "OpenAI assist!"
@@ -577,12 +573,7 @@ export default class TitleScene extends Phaser.Scene {
     const source = window.VIBE_CODER?.lastXPSource?.name?.toLowerCase();
     let quotePool = this.codingQuotes;
 
-    if (source === 'claude') {
-      // 50% chance to use Claude-specific quote
-      if (Math.random() < 0.5) {
-        quotePool = this.claudeQuotes;
-      }
-    } else if (source === 'codex') {
+    if (source === 'codex') {
       if (Math.random() < 0.5) {
         quotePool = this.codexQuotes;
       }
@@ -706,6 +697,9 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   sayQuote(text) {
+    if (this.isShuttingDown || !this.speechBubble || !this.speechText || !this.idlePlayer) {
+      return;
+    }
     // Clear existing speech
     if (this.speechTimer) {
       this.speechTimer.remove();
@@ -764,6 +758,9 @@ export default class TitleScene extends Phaser.Scene {
   }
 
   showThinkingBubble() {
+    if (this.isShuttingDown || !this.thinkingBubble || !this.thinkingDots || !this.idlePlayer) {
+      return;
+    }
     // Clear existing timer
     if (this.thinkingTimer) {
       this.thinkingTimer.remove();
@@ -1177,7 +1174,7 @@ export default class TitleScene extends Phaser.Scene {
 
     const controls = [
       'WASD / ARROWS - Move',
-      'SPACE - Manual XP (when offline)',
+      'XP +10 per kill',
       'M - Toggle Music',
       'ESC / P - Pause Game',
       '',
@@ -1652,17 +1649,44 @@ export default class TitleScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Currency display
-    const currencyText = this.add.text(400, 115, `BITS: ${window.VIBE_UPGRADES.currency}`, {
+    // USDC balance display
+    const balanceText = this.add.text(400, 115, 'USDC: -', {
       fontFamily: 'monospace',
       fontSize: '16px',
       color: '#ffd700'
     }).setOrigin(0.5);
 
+    const statusText = this.add.text(400, 135, '', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#666666'
+    }).setOrigin(0.5);
+
+    let usdcBalance = null;
+    let isPurchasing = false;
+
+    const refreshBalance = async () => {
+      if (!window.WEB3?.address) {
+        usdcBalance = null;
+        balanceText.setText('USDC: -');
+        return;
+      }
+      try {
+        const bal = await readUsdcBalance(window.WEB3.address);
+        usdcBalance = Number(bal);
+        balanceText.setText(`USDC: ${bal}`);
+      } catch (err) {
+        usdcBalance = null;
+        balanceText.setText('USDC: -');
+      }
+    };
+
+    refreshBalance();
+
     // Upgrade list
     const upgradeKeys = Object.keys(window.VIBE_UPGRADES.upgrades);
     const upgradeTexts = [];
-    const startY = 160;
+    const startY = 175;
     const spacing = 42;
 
     upgradeKeys.forEach((key, index) => {
@@ -1672,8 +1696,8 @@ export default class TitleScene extends Phaser.Scene {
       const maxed = level >= upgrade.maxLevel;
 
       const levelBar = '█'.repeat(level) + '░'.repeat(upgrade.maxLevel - level);
-      const costStr = maxed ? 'MAXED' : `${cost} BITS`;
-      const canAfford = window.VIBE_UPGRADES.currency >= cost && !maxed;
+      const costStr = maxed ? 'MAXED' : `${cost} USDC`;
+      const canAfford = (cost === 0 || (usdcBalance !== null && usdcBalance >= cost)) && !maxed;
 
       const text = this.add.text(400, startY + index * spacing,
         `${upgrade.name} [${levelBar}]\n${upgrade.desc}\nCost: ${costStr}`, {
@@ -1713,11 +1737,11 @@ export default class TitleScene extends Phaser.Scene {
         const level = window.VIBE_UPGRADES.levels[item.key] || 0;
         const cost = window.VIBE_UPGRADES.getCost(item.key);
         const maxed = level >= upgrade.maxLevel;
-        item.canAfford = window.VIBE_UPGRADES.currency >= cost && !maxed;
+        item.canAfford = (cost === 0 || (usdcBalance !== null && usdcBalance >= cost)) && !maxed;
         item.maxed = maxed;
 
         const levelBar = '█'.repeat(level) + '░'.repeat(upgrade.maxLevel - level);
-        const costStr = maxed ? 'MAXED' : `${cost} BITS`;
+        const costStr = maxed ? 'MAXED' : `${cost} USDC`;
 
         item.text.setText(`${upgrade.name} [${levelBar}]\n${upgrade.desc}\nCost: ${costStr}`);
 
@@ -1729,7 +1753,9 @@ export default class TitleScene extends Phaser.Scene {
       });
 
       selector.setY(startY + this.upgradeSelectedIndex * spacing);
-      currencyText.setText(`BITS: ${window.VIBE_UPGRADES.currency}`);
+      if (usdcBalance === null) {
+        balanceText.setText('USDC: -');
+      }
     };
 
     // Input handlers
@@ -1747,19 +1773,58 @@ export default class TitleScene extends Phaser.Scene {
       Audio.playXPGain();
     };
 
-    const purchase = () => {
+    const purchase = async () => {
       const item = upgradeTexts[this.upgradeSelectedIndex];
-      if (item.canAfford) {
+      const cost = window.VIBE_UPGRADES.getCost(item.key);
+
+      if (item.maxed) return;
+      if (isPurchasing) return;
+
+      if (cost === 0) {
         window.VIBE_UPGRADES.purchase(item.key);
         Audio.playLevelUp();
         updateVisuals();
-      } else {
+        return;
+      }
+
+      if (!window.WEB3?.connected || !window.WEB3?.address) {
+        statusText.setText('Connect wallet to buy upgrades.');
+        return;
+      }
+
+      if (usdcBalance === null) {
+        await refreshBalance();
+      }
+
+      if (!(cost === 0 || (usdcBalance !== null && usdcBalance >= cost))) {
+        statusText.setText('Not enough USDC.');
         // Flash red on failed purchase
-        const originalColor = item.text.style.color;
         item.text.setColor('#ff0000');
-        this.time.delayedCall(100, () => {
-          updateVisuals();
-        });
+        this.time.delayedCall(100, () => updateVisuals());
+        return;
+      }
+
+      if (!window.TREASURY_ADDRESS || !window.TREASURY_ADDRESS.startsWith('0x')) {
+        statusText.setText('Missing treasury address.');
+        return;
+      }
+
+      isPurchasing = true;
+      statusText.setText('Confirm in wallet...');
+      try {
+        const txHash = await sendUsdc(window.TREASURY_ADDRESS, String(cost));
+        window.VIBE_UPGRADES.purchase(item.key);
+        await refreshBalance();
+        statusText.setText(`Purchased! tx: ${String(txHash).slice(0, 10)}...`);
+        Audio.playLevelUp();
+        updateVisuals();
+      } catch (err) {
+        statusText.setText(`Payment failed: ${err?.message || err}`);
+        // Flash red on failed purchase
+        item.text.setColor('#ff0000');
+        this.time.delayedCall(100, () => updateVisuals());
+      } finally {
+        isPurchasing = false;
       }
     };
 
@@ -1775,7 +1840,8 @@ export default class TitleScene extends Phaser.Scene {
 
       overlay.destroy();
       title.destroy();
-      currencyText.destroy();
+      balanceText.destroy();
+      statusText.destroy();
       selector.destroy();
       instructions.destroy();
       upgradeTexts.forEach(item => item.text.destroy());
@@ -2176,5 +2242,36 @@ export default class TitleScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-A', tabLeft);
     this.input.keyboard.on('keydown-D', tabRight);
     this.input.keyboard.on('keydown-ESC', close);
+  }
+
+  cleanup() {
+    if (this.isShuttingDown) return;
+    this.isShuttingDown = true;
+
+    if (this.speechTimer) {
+      this.speechTimer.remove();
+      this.speechTimer = null;
+    }
+    if (this.thinkingTimer) {
+      this.thinkingTimer.remove();
+      this.thinkingTimer = null;
+    }
+    if (this.dotAnimationTimer) {
+      this.dotAnimationTimer.remove();
+      this.dotAnimationTimer = null;
+    }
+
+    if (this.xpGainedHandler) {
+      window.removeEventListener('xpgained', this.xpGainedHandler);
+    }
+    if (this.xpConnectedHandler) {
+      window.removeEventListener('xpserver-connected', this.xpConnectedHandler);
+    }
+    if (this.xpDisconnectedHandler) {
+      window.removeEventListener('xpserver-disconnected', this.xpDisconnectedHandler);
+    }
+    if (this.levelUpHandler) {
+      window.removeEventListener('levelup', this.levelUpHandler);
+    }
   }
 }

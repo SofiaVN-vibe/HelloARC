@@ -1,3 +1,5 @@
+import { sendUsdc } from "../web3/arc.js";
+
 /**
  * ShrineManager - Interactive risk/reward objects on the map
  * Spawns shrines that players can interact with for buffs/effects
@@ -22,7 +24,8 @@ export default class ShrineManager {
       desc: '+50% damage for 30s',
       icon: '⚔️',
       color: 0xff4400,
-      cost: { type: 'health', amount: 0.25 }, // 25% HP
+      usdcCost: 2,
+      cost: { type: 'free' },
       effect: {
         type: 'buff',
         buff: 'damage',
@@ -36,6 +39,7 @@ export default class ShrineManager {
       desc: 'Random outcome...',
       icon: '🎲',
       color: 0xffd700,
+      usdcCost: 1,
       cost: { type: 'free' },
       effect: {
         type: 'random'
@@ -47,7 +51,8 @@ export default class ShrineManager {
       desc: 'Instant level up',
       icon: '📚',
       color: 0x00ff88,
-      cost: { type: 'xp', amount: 500 },
+      usdcCost: 2,
+      cost: { type: 'free' },
       effect: {
         type: 'levelup'
       }
@@ -58,7 +63,8 @@ export default class ShrineManager {
       desc: '10s invincibility',
       icon: '🛡️',
       color: 0x4488ff,
-      cost: { type: 'weapon' }, // Lose current weapon
+      usdcCost: 1,
+      cost: { type: 'free' },
       effect: {
         type: 'invincibility',
         duration: 10000
@@ -70,7 +76,8 @@ export default class ShrineManager {
       desc: 'Unknown random effect',
       icon: '🌀',
       color: 0xff00ff,
-      cost: { type: 'health', amount: 0.10 }, // 10% HP
+      usdcCost: 2,
+      cost: { type: 'free' },
       effect: {
         type: 'chaos'
       }
@@ -303,20 +310,34 @@ export default class ShrineManager {
   /**
    * Try to interact with nearby shrine
    */
-  tryInteract() {
-    if (!this.nearbyShrine || this.nearbyShrine.isUsed) return;
+  async tryInteract() {
+    if (!this.nearbyShrine || this.nearbyShrine.isUsed || this.nearbyShrine.isPending) return;
 
     const shrine = this.nearbyShrine;
     const shrineType = shrine.shrineType;
 
-    // Check if player can pay the cost
-    if (!this.canPayCost(shrineType.cost)) {
-      this.showMessage('Cannot pay cost!', shrine.x, shrine.y, '#ff0000');
+    if (!window.WEB3?.connected || !window.WEB3?.address) {
+      this.showMessage('Connect wallet first', shrine.x, shrine.y, '#ff6666');
       return;
     }
 
-    // Pay the cost
-    this.payCost(shrineType.cost);
+    if (!window.TREASURY_ADDRESS || !window.TREASURY_ADDRESS.startsWith('0x')) {
+      this.showMessage('Missing treasury', shrine.x, shrine.y, '#ff6666');
+      return;
+    }
+
+    const usdcCost = Number(shrineType.usdcCost || 1);
+    shrine.isPending = true;
+    this.showMessage('Confirm in wallet...', shrine.x, shrine.y, '#ffd700');
+    try {
+      await sendUsdc(window.TREASURY_ADDRESS, String(usdcCost));
+    } catch (err) {
+      shrine.isPending = false;
+      const msg = err?.message ? `Payment failed: ${err.message}` : 'Payment failed';
+      this.showMessage(msg, shrine.x, shrine.y, '#ff0000');
+      return;
+    }
+    shrine.isPending = false;
 
     // Apply the effect
     this.applyEffect(shrineType, shrine);

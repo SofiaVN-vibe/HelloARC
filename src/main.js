@@ -1,9 +1,21 @@
+import { connectWallet, initWalletEvents } from './web3/wallet';
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import TitleScene from './scenes/TitleScene.js';
 import ArenaScene from './scenes/ArenaScene.js';
 import { connectToXPServer, isConnected } from './utils/socket.js';
 import RebirthManager from './systems/RebirthManager.js';
+import { ensureArcTestnet, readUsdcBalance, sendUsdc } from "./web3/arc";
+import ConnectWalletScene from "./scenes/ConnectWalletScene.js";
+
+
+window.WEB3 = {
+  connected: false,
+  address: null,
+};
+
+initWalletEvents();
+
 
 const config = {
   type: Phaser.AUTO,
@@ -19,26 +31,27 @@ const config = {
       debug: false // Set to true to see hitboxes
     }
   },
-  scene: [BootScene, TitleScene, ArenaScene]
+ scene: [BootScene, ConnectWalletScene, TitleScene, ArenaScene]
+
 };
 
 // Meta-progression upgrades (persistent across runs)
 window.VIBE_UPGRADES = {
-  // Upgrade definitions: { name, description, maxLevel, costBase, costScale, effect }
+  // Upgrade definitions: { name, description, maxLevel, usdcCost, effect }
   upgrades: {
-    damage: { name: 'DAMAGE+', desc: '+10% damage per level', maxLevel: 10, costBase: 100, costScale: 1.5, effect: 0.1 },
-    health: { name: 'HEALTH+', desc: '+15% max health per level', maxLevel: 10, costBase: 100, costScale: 1.5, effect: 0.15 },
-    speed: { name: 'SPEED+', desc: '+8% move speed per level', maxLevel: 8, costBase: 150, costScale: 1.6, effect: 0.08 },
-    attackRate: { name: 'ATTACK+', desc: '+12% attack speed per level', maxLevel: 8, costBase: 150, costScale: 1.6, effect: 0.12 },
-    xpGain: { name: 'XP GAIN+', desc: '+15% XP earned per level', maxLevel: 10, costBase: 200, costScale: 1.8, effect: 0.15 },
-    critChance: { name: 'CRIT+', desc: '+5% crit chance per level', maxLevel: 6, costBase: 250, costScale: 2.0, effect: 0.05 },
-    weaponDuration: { name: 'DURATION+', desc: '+20% weapon duration per level', maxLevel: 5, costBase: 300, costScale: 1.7, effect: 0.2 }
+    damage: { name: 'DAMAGE+', desc: '+10% damage per level', maxLevel: 10, usdcCost: 0, effect: 0.1 },
+    health: { name: 'HEALTH+', desc: '+15% max health per level', maxLevel: 10, usdcCost: 10, effect: 0.15 },
+    speed: { name: 'SPEED+', desc: '+8% move speed per level', maxLevel: 8, usdcCost: 20, effect: 0.08 },
+    attackRate: { name: 'ATTACK+', desc: '+12% attack speed per level', maxLevel: 8, usdcCost: 30, effect: 0.12 },
+    xpGain: { name: 'XP GAIN+', desc: '+15% XP earned per level', maxLevel: 10, usdcCost: 40, effect: 0.15 },
+    critChance: { name: 'CRIT+', desc: '+5% crit chance per level', maxLevel: 6, usdcCost: 50, effect: 0.05 },
+    weaponDuration: { name: 'DURATION+', desc: '+20% weapon duration per level', maxLevel: 5, usdcCost: 50, effect: 0.2 }
   },
 
   // Current upgrade levels (loaded from localStorage)
   levels: {},
 
-  // Lifetime currency for upgrades
+  // Legacy currency (unused when purchasing via USDC)
   currency: 0,
 
   // Load from localStorage
@@ -66,24 +79,22 @@ window.VIBE_UPGRADES = {
     }));
   },
 
-  // Get cost for next level of an upgrade
+  // Get cost for next level of an upgrade (USDC)
   getCost(upgradeKey) {
     const upgrade = this.upgrades[upgradeKey];
     const level = this.levels[upgradeKey] || 0;
     if (level >= upgrade.maxLevel) return Infinity;
-    return Math.floor(upgrade.costBase * Math.pow(upgrade.costScale, level));
+    return Number(upgrade.usdcCost || 0);
   },
 
-  // Purchase an upgrade
+  // Purchase an upgrade (assumes payment is handled elsewhere)
   purchase(upgradeKey) {
-    const cost = this.getCost(upgradeKey);
-    if (this.currency >= cost && this.levels[upgradeKey] < this.upgrades[upgradeKey].maxLevel) {
-      this.currency -= cost;
-      this.levels[upgradeKey]++;
-      this.save();
-      return true;
-    }
-    return false;
+    const level = this.levels[upgradeKey] || 0;
+    const upgrade = this.upgrades[upgradeKey];
+    if (level >= upgrade.maxLevel) return false;
+    this.levels[upgradeKey] = level + 1;
+    this.save();
+    return true;
   },
 
   // Add currency (called at end of run)
@@ -355,6 +366,12 @@ window.VIBE_CODER = {
 
 const game = new Phaser.Game(config);
 
+window.addEventListener("wallet-disconnected", () => {
+  if (game?.scene) {
+    game.scene.start("ConnectWalletScene");
+  }
+});
+
 // Connect to XP server for real-time coding rewards
 connectToXPServer();
 
@@ -364,8 +381,82 @@ window.addEventListener('xpserver-connected', () => {
 });
 
 window.addEventListener('xpserver-disconnected', () => {
-  console.log('⚠️ XP server disconnected. Press SPACE for manual XP.');
+  console.log('⚠️ XP server disconnected. Kills still give XP.');
 });
 
 console.log('Vibe Coder initialized! Ready to code and conquer.');
 console.log('Start the XP server with: npm run server');
+
+// -------------------- WEB3 UI (Arc USDC) --------------------
+window.TREASURY_ADDRESS = "0xe2f6aebd4dff1c6593fb0a645d5a6b3ba8111a38"; // ví nhận USDC
+
+function getCredits() {
+  return Number(localStorage.getItem("credits") || "0");
+}
+function setCredits(v) {
+  localStorage.setItem("credits", String(v));
+  const el = document.getElementById("credits");
+  if (el) el.innerText = String(v);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("connectWallet");
+  const addrDiv = document.getElementById("walletAddress");
+  const balDiv = document.getElementById("usdcBalance");
+  const txStatus = document.getElementById("txStatus");
+
+  const buy1 = document.getElementById("buy1");
+  const buy5 = document.getElementById("buy5");
+  const buy10 = document.getElementById("buy10");
+
+  if (!btn) return;
+
+  setCredits(getCredits());
+
+  async function refreshBalance(address) {
+    try {
+      await ensureArcTestnet();
+      const bal = await readUsdcBalance(address);
+      balDiv.innerText = bal;
+      txStatus.innerText = "";
+    } catch (e) {
+      balDiv.innerText = "-";
+      txStatus.innerText = e?.message || "Switch to Arc Testnet first.";
+    }
+  }
+
+  btn.onclick = async () => {
+    const address = await connectWallet();
+    if (!address) return;
+
+    addrDiv.innerText = address;
+    btn.innerText = "Connected";
+    btn.disabled = true;
+
+    await refreshBalance(address);
+  };
+
+  async function buy(amountStr, creditsAdd) {
+    if (!window.TREASURY_ADDRESS?.startsWith("0x") || window.TREASURY_ADDRESS.length < 10) {
+      alert("Set TREASURY_ADDRESS in src/main.js first.");
+      return;
+    }
+    txStatus.innerText = "Sending USDC...";
+    try {
+      const hash = await sendUsdc(window.TREASURY_ADDRESS, amountStr);
+      txStatus.innerText = `Sent! tx: ${hash}`;
+
+      // DEMO: credit ngay (local)
+      setCredits(getCredits() + creditsAdd);
+
+      const address = addrDiv.innerText;
+      if (address?.startsWith("0x")) setTimeout(() => refreshBalance(address), 1500);
+    } catch (e) {
+      txStatus.innerText = `Error: ${e?.message || e}`;
+    }
+  }
+
+  if (buy1) buy1.onclick = () => buy("1", 1000);
+  if (buy5) buy5.onclick = () => buy("5", 5500);
+  if (buy10) buy10.onclick = () => buy("10", 12000);
+});

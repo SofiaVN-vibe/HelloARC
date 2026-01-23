@@ -34,12 +34,15 @@ export default class ArenaScene extends Phaser.Scene {
       maxHealth: 200   // chonky boi
     };
 
+    // Flat XP per enemy kill
+    this.killXpValue = 5;
+
     // Invincibility after hit
     this.invincible = false;
 
     // Wave system
     this.waveNumber = 1;
-    this.enemiesPerWave = 5;
+    this.enemiesPerWave = 100;
     this.spawnTimer = null;
     this.waveTimer = null;
 
@@ -79,9 +82,9 @@ export default class ArenaScene extends Phaser.Scene {
     this.bossTypes = {
       'boss-stackoverflow': {
         name: 'STACK OVERFLOW',
-        health: 2000,
-        speed: 30,
-        damage: 15,
+        health: 9000,
+        speed: 90,
+        damage: 50,
         xpValue: 500,
         wave: 20,
         color: 0x00ff00,
@@ -154,40 +157,40 @@ export default class ArenaScene extends Phaser.Scene {
     // New enemy types with unique behaviors
     this.enemyTypes = {
       // Original enemies
-      bug: { health: 15, speed: 40, damage: 3, xpValue: 5, behavior: 'chase' },
-      glitch: { health: 30, speed: 70, damage: 5, xpValue: 15, behavior: 'chase' },
-      'memory-leak': { health: 60, speed: 25, damage: 10, xpValue: 30, behavior: 'chase' },
-      'syntax-error': { health: 12, speed: 100, damage: 2, xpValue: 10, behavior: 'teleport', teleportCooldown: 3000 },
+      bug: { health: 90, speed: 100, damage: 10, xpValue: 5, behavior: 'chase' },
+      glitch: { health: 90, speed: 500, damage: 15, xpValue: 5, behavior: 'chase' },
+      'memory-leak': { health: 60, speed: 50, damage: 10, xpValue: 30, behavior: 'chase' },
+      'syntax-error': { health: 12, speed: 1000, damage: 2, xpValue: 10, behavior: 'teleport', teleportCooldown: 3000 },
       'infinite-loop': { health: 40, speed: 50, damage: 4, xpValue: 20, behavior: 'orbit', orbitRadius: 120 },
-      'race-condition': { health: 25, speed: 60, damage: 6, xpValue: 25, behavior: 'erratic', speedVariance: 80 },
+      'race-condition': { health: 25, speed: 30, damage: 6, xpValue: 25, behavior: 'erratic', speedVariance: 80 },
 
       // NEW Coding-themed enemies
       'segfault': { health: 10, speed: 0, damage: 999, xpValue: 50, behavior: 'deathzone', lifespan: 8000, waveMin: 30 },
-      'dependency-hell': { health: 80, speed: 30, damage: 6, xpValue: 80, behavior: 'spawner', spawnInterval: 3000, maxMinions: 4, waveMin: 35 },
-      'stack-overflow': { health: 100, speed: 35, damage: 8, xpValue: 100, behavior: 'grow', growRate: 0.001, waveMin: 25 },
+      'dependency-hell': { health: 80, speed: 20, damage: 6, xpValue: 80, behavior: 'spawner', spawnInterval: 3000, maxMinions: 4, waveMin: 35 },
+      'stack-overflow': { health: 100, speed: 50, damage: 8, xpValue: 100, behavior: 'grow', growRate: 0.001, waveMin: 25 },
 
       // NEW AI-themed enemies
       'hallucination': { health: 1, speed: 50, damage: 0, xpValue: 1, behavior: 'fake', waveMin: 20 },
-      'token-overflow': { health: 40, speed: 45, damage: 5, xpValue: 40, behavior: 'growDamage', growRate: 0.0005, waveMin: 25 },
-      'context-loss': { health: 50, speed: 60, damage: 7, xpValue: 60, behavior: 'contextLoss', teleportCooldown: 2500, wanderChance: 0.3, waveMin: 30 },
-      'prompt-injection': { health: 60, speed: 40, damage: 5, xpValue: 100, behavior: 'hijack', hijackDuration: 5000, hijackCooldown: 10000, waveMin: 40 },
+      'token-overflow': { health: 40, speed: 50, damage: 5, xpValue: 40, behavior: 'growDamage', growRate: 0.0005, waveMin: 25 },
+      'context-loss': { health: 50, speed: 100, damage: 7, xpValue: 60, behavior: 'contextLoss', teleportCooldown: 2500, wanderChance: 0.3, waveMin: 30 },
+      'prompt-injection': { health: 60, speed: 100, damage: 5, xpValue: 100, behavior: 'hijack', hijackDuration: 5000, hijackCooldown: 10000, waveMin: 40 },
 
       // NEW v2 enemies (Mixed AI + Coding)
       '404-not-found': { health: 25, speed: 55, damage: 4, xpValue: 20, behavior: 'invisible', waveMin: 18 },
       'cors-error': { health: 35, speed: 0, damage: 8, xpValue: 30, behavior: 'blocker', blockDuration: 5000, waveMin: 22 },
-      'type-error': { health: 30, speed: 50, damage: 5, xpValue: 25, behavior: 'morph', morphInterval: 3000, waveMin: 28 },
-      'git-conflict': { health: 45, speed: 40, damage: 4, xpValue: 35, behavior: 'split', waveMin: 32 },
-      'overfitting': { health: 50, speed: 65, damage: 6, xpValue: 45, behavior: 'predict', waveMin: 38 },
-      'mode-collapse': { health: 70, speed: 35, damage: 7, xpValue: 60, behavior: 'clone', cloneCooldown: 8000, cloneRadius: 120, waveMin: 45 }
+      'type-error': { health: 30, speed: 100, damage: 5, xpValue: 25, behavior: 'morph', morphInterval: 3000, waveMin: 28 },
+      'git-conflict': { health: 45, speed: 100, damage: 4, xpValue: 35, behavior: 'split', waveMin: 32 },
+      'overfitting': { health: 50, speed: 250, damage: 6, xpValue: 45, behavior: 'predict', waveMin: 38 },
+      'mode-collapse': { health: 70, speed: 105, damage: 7, xpValue: 60, behavior: 'clone', cloneCooldown: 8000, cloneRadius: 120, waveMin: 45 }
     };
 
     // Mini-boss definitions (appear at waves 10, 30, 50...)
     this.miniBossTypes = {
       'miniboss-deadlock': {
         name: 'DEADLOCK',
-        health: 500,
-        speed: 35,
-        damage: 12,
+        health: 5000,
+        speed: 200,
+        damage: 120,
         xpValue: 150,
         color: 0xff6600,
         ability: 'freeze'
@@ -389,13 +392,6 @@ export default class ArenaScene extends Phaser.Scene {
       this.modifierEffects = RunModifiers.getCombinedEffects(this.activeModifiers);
     }
 
-    // For testing - press SPACE to simulate XP gain (only when not paused)
-    this.input.keyboard.on('keydown-SPACE', () => {
-      if (!this.isPaused) {
-        window.VIBE_CODER.addXP(10);
-      }
-    });
-
     // Initialize audio on first interaction
     this.input.on('pointerdown', () => {
       Audio.initAudio();
@@ -417,7 +413,7 @@ export default class ArenaScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC', () => this.togglePause());
     this.input.keyboard.on('keydown-P', () => this.togglePause());
 
-    console.log('Arena ready! WASD to move, auto-attack enabled. Press SPACE for XP. M for music. ESC/P to pause.');
+    console.log('Arena ready! WASD to move, auto-attack enabled. Kills give XP. M for music. ESC/P to pause.');
   }
 
   createBackground() {
@@ -1032,7 +1028,7 @@ export default class ArenaScene extends Phaser.Scene {
     });
 
     window.addEventListener('xpserver-disconnected', () => {
-      this.connectionText.setText('🔴 OFFLINE - SPACE FOR XP | M = MUSIC');
+      this.connectionText.setText('🔴 OFFLINE - KILLS GIVE XP | M = MUSIC');
       this.connectionText.setColor('#ff6666');
     });
 
@@ -1340,7 +1336,7 @@ export default class ArenaScene extends Phaser.Scene {
       this.spawnTimer = { getRemaining: () => 0 };
 
       this.waveTimer = this.time.addEvent({
-        delay: 2000,
+        delay: 500,
         callback: () => this.checkWaveComplete(),
         loop: true
       });
@@ -1360,10 +1356,10 @@ export default class ArenaScene extends Phaser.Scene {
 
     // Spawn enemies over time (cap the scaling so it doesn't get insane)
     let spawned = 0;
-    const toSpawn = Math.min(this.enemiesPerWave + (this.waveNumber * 2), 25);
+    const toSpawn = Math.min(this.enemiesPerWave + (this.waveNumber * 10), 40);
 
     this.spawnTimer = this.time.addEvent({
-      delay: 1000,
+      delay: 500,
       callback: () => {
         if (spawned < toSpawn) {
           this.spawnEnemy();
@@ -1509,7 +1505,7 @@ export default class ArenaScene extends Phaser.Scene {
 
   spawnEnemy() {
     // CAP enemies on screen to prevent overwhelming at high levels
-    const MAX_ENEMIES = 30;
+    const MAX_ENEMIES = 5000;
     if (this.enemies.countActive() >= MAX_ENEMIES) return;
 
     // Spawn in a ring around the player (not screen edges)
@@ -1941,7 +1937,8 @@ export default class ArenaScene extends Phaser.Scene {
 
         // Check death
         if (enemy.health <= 0) {
-          window.VIBE_CODER.addXP(enemy.xpValue);
+          const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
+          window.VIBE_CODER.addXP(Math.floor(this.killXpValue * xpMult));
           window.VIBE_CODER.kills++;
           enemy.destroy();
           this.updateHUD();
@@ -2853,7 +2850,7 @@ export default class ArenaScene extends Phaser.Scene {
       killCount++;
       // Apply event and modifier XP multipliers
       const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
-      window.VIBE_CODER.addXP(Math.floor(enemy.xpValue * xpMult));
+      window.VIBE_CODER.addXP(Math.floor(this.killXpValue * xpMult));
       window.VIBE_CODER.kills++;
 
       // Death particle
@@ -3109,7 +3106,8 @@ export default class ArenaScene extends Phaser.Scene {
           onComplete: () => {
             if (enemy.active) {
               // Award XP for magnetized enemies
-              window.VIBE_CODER.addXP(Math.floor(enemy.xpValue * 0.5));
+              const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
+              window.VIBE_CODER.addXP(Math.floor(this.killXpValue * 0.5 * xpMult));
               window.VIBE_CODER.kills++;
 
               // Death effect
@@ -3171,7 +3169,8 @@ export default class ArenaScene extends Phaser.Scene {
           });
 
           if (enemy.health <= 0) {
-            window.VIBE_CODER.addXP(enemy.xpValue);
+            const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
+            window.VIBE_CODER.addXP(Math.floor(this.killXpValue * xpMult));
             window.VIBE_CODER.kills++;
             if (Math.random() < 0.1) this.spawnWeaponDrop(enemy.x, enemy.y);
             enemy.destroy();
@@ -3296,7 +3295,8 @@ export default class ArenaScene extends Phaser.Scene {
               // Check for legendary drop (super rare)
               this.checkLegendaryDrop(enemy.x, enemy.y);
 
-              window.VIBE_CODER.addXP(enemy.xpValue);
+              const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
+              window.VIBE_CODER.addXP(Math.floor(this.killXpValue * xpMult));
               window.VIBE_CODER.kills++;
               if (Math.random() < 0.15) this.spawnWeaponDrop(enemy.x, enemy.y);
               enemy.destroy();
@@ -3456,7 +3456,7 @@ export default class ArenaScene extends Phaser.Scene {
     if (enemy.health <= 0) {
       // Award XP (apply event and modifier multipliers)
       const xpMult = (this.xpEventMultiplier || 1) * (this.modifierEffects?.xpMult || 1);
-      window.VIBE_CODER.addXP(Math.floor(enemy.xpValue * xpMult));
+      window.VIBE_CODER.addXP(Math.floor(this.killXpValue * xpMult));
       window.VIBE_CODER.kills++;
 
       // GIT CONFLICT: Split into 2 smaller enemies on death
@@ -4033,7 +4033,7 @@ export default class ArenaScene extends Phaser.Scene {
         case 'spawner':
           // DEPENDENCY HELL: Spawns minion bugs periodically
           // === FREEZE BUG FIX: Respect global MAX_ENEMIES cap ===
-          const MAX_ENEMIES = 30;
+          const MAX_ENEMIES = 30000;
           const canSpawnMinion = this.time.now - enemy.lastSpawn > enemy.spawnInterval &&
                                   enemy.minionCount < enemy.maxMinions &&
                                   this.enemies.countActive() < MAX_ENEMIES;
@@ -4046,8 +4046,8 @@ export default class ArenaScene extends Phaser.Scene {
             const minionY = enemy.y + Math.sin(minionAngle) * 30;
             const minion = this.enemies.create(minionX, minionY, 'bug');
             minion.health = 8;
-            minion.speed = 50;
-            minion.damage = 2;
+            minion.speed = 1000;
+            minion.damage = 50;
             minion.xpValue = 3;
             minion.enemyType = 'bug';
             minion.behavior = 'chase';
