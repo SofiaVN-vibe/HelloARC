@@ -2,10 +2,6 @@
 
 A vampire survivors-style idle game where you earn XP from real coding activity. Code to conquer!
 
-### [▶️ Play Now](https://daredev256.github.io/vibe-coder/) | [⬇️ Download Desktop App](#-desktop-app) | [📖 Setup Guide](./SETUP.md) | [📋 Changelog](./CHANGELOG.md)
-
-![Phaser 3](https://img.shields.io/badge/Phaser-3.x-blue) ![Vite](https://img.shields.io/badge/Vite-7.x-purple) ![Electron](https://img.shields.io/badge/Electron-33.x-9feaf9) ![Node](https://img.shields.io/badge/Node-18+-green) ![Play Online](https://img.shields.io/badge/Play-Online-brightgreen)
-
 ## 🎯 About
 
 Vibe Coder is an idle survival game that rewards you for coding. Connect it to your development workflow and watch your character grow stronger as you write code. Every tool call, every prompt, every commit powers up your in-game character.
@@ -75,9 +71,6 @@ Persistent buffs: Damage, Health, Speed, Attack Rate, XP Gain, Crit Chance, Dura
 
 ## 🚀 Quick Start
 
-### Play Online (No Install)
-**[▶️ Play Vibe Coder Now](https://daredev256.github.io/vibe-coder/)**
-
 Press **SPACE** to manually gain XP, or connect the hooks for real coding rewards!
 
 ### Local Development
@@ -99,10 +92,6 @@ Open http://localhost:5173 in your browser.
 Run Vibe Coder as a native desktop app with system tray integration!
 
 ### Download
-Check the [Releases](https://github.com/DareDev256/vibe-coder/releases) page for pre-built binaries:
-- **macOS**: `.dmg` installer (Universal - Intel + Apple Silicon)
-- **Windows**: `.exe` installer
-- **Linux**: `.AppImage` or `.deb`
 
 ### Features
 - **System Tray** - Lives in your menu bar, always accessible
